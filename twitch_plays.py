@@ -5,18 +5,31 @@ import threading
 import time
 from ahk import AHK
 import random
-from config import TOKEN, HOT_KEY_PATH
+from config import TOKEN, HOT_KEY_PATH, CHANNEL, NICKNAME
+
+from formlayout import fedit
 
 
 SERVER = 'irc.chat.twitch.tv'
 PORT = 6667
-NICKNAME = 'tboss98_'
 ENCODING = 'utf-8'
-# CHANNEL = 'tboss98_'
-CHANNEL = 'hungrybox'
 
 
-minutes = 1
+minutes = 3
+
+
+
+# # I think I might want to use queues instead of modifying global variables
+### https://stackoverflow.com/questions/19790570/using-a-global-variable-with-a-thread
+# from queue import Queue
+
+
+#  maybe I should utilize threading Locks?
+
+
+
+
+
 
 
 # global variables
@@ -44,24 +57,46 @@ logging.basicConfig(level=logging.DEBUG,
                     handlers=[logging.FileHandler(f'./data/{CHANNEL}_chat.log', encoding=ENCODING)])
 
 # define start time for timer
-startTime = dt.datetime.now()
+# startTime = dt.datetime.now()
 
 
 
-# def timer():
-    ###  this function will be used to terminate the other functions based on the boolean...
-    ### ... value of the global continueRunning variable
+def timer():
+    ##  this function will be used to terminate the other functions based on the boolean...
+    ## ... value of the global continueRunning variable
 
-#     global continueRunning
-
-
-#     # define start time for timer
-#     startTime = dt.datetime.now()
+    global continueRunning
 
 
-#     while continueRunning:
-#         if dt.datetime.now > startTime + dt.timedelta(minutes=minutes):
-#             continueRunning =False
+    # define start time for timer
+    startTime = dt.datetime.now()
+
+    while continueRunning:
+        if dt.datetime.now() > (startTime + dt.timedelta(minutes=minutes)):
+            print('timer hit in stopFuncs function')
+            continueRunning =False
+    print(continueRunning)
+
+
+
+def stopButton():
+
+    global continueRunning
+    print('initiate stop button function')
+
+    while continueRunning:
+        print('before fedit')
+        stopTwitch= fedit(data=[('Stop Twitchbot',True)],comment="<h3>Press ok to stop twitch bot</h3><br><h2>This dialouge box will reload until the program is terminated</h2>")[0]
+        print(stopTwitch)
+        print('after fedit')
+
+
+        if stopTwitch:
+            print('stop button')
+            continueRunning = False
+
+
+
 
 
 
@@ -74,8 +109,9 @@ def output_test_function():
 
     global user
     global message
+    global continueRunning
 
-    while True:
+    while continueRunning:
 
 
         if message.lower() == 'test':
@@ -97,9 +133,9 @@ def output_test_function():
         message=''
 
 
-        if dt.datetime.now() > startTime + dt.timedelta(minutes=minutes):
-            print('output test function ended due to timer')
-            break
+        # if dt.datetime.now() > startTime + dt.timedelta(minutes=minutes):
+        #     print('output test function ended due to timer')
+        #     break
 
 
 
@@ -108,18 +144,23 @@ def readTwitch():
 
     global user
     global message
+    global continueRunning
 
     def joinchat(): 
         loading = True
         while loading :
-            try:
-                print('waiting to receive initial chat')
-                resp=sock.recv(2048).decode(ENCODING)
 
-            except:
-                print('error in join chat function')
-                resp =''
-                # continue
+            print('waiting to receive initial chat')
+            resp=sock.recv(2048).decode(ENCODING)
+
+            # try:
+            #     print('waiting to receive initial chat')
+            #     resp=sock.recv(2048).decode(ENCODING)
+
+            # except:
+            #     print('error in join chat function')
+            #     resp =''
+            #     # continue
             
             logging.info(resp)
 
@@ -136,30 +177,32 @@ def readTwitch():
 
     def getuser(response):
         username = response.split('!')[0][1:]
-        # print(f'username:{username}')
+        
         return username
 
     def getmsg(response):
         msg = response.split(f'PRIVMSG #{CHANNEL} :')[-1].replace('\r\n','')
-        # print(f'message:{msg}')
+        
         return msg
 
     joinchat()
     # sock.send("CAP REQ :twitch.tv/tags\r\n".encode())
     # https://dev.twitch.tv/docs/irc/tags
     # sock.send
-    while True:
+    while continueRunning:
 
-        print('--------------------')
-        print('waiting for user message')
-        resp = sock.recv(2048).decode(ENCODING)
+        # print('--------------------')
+        # print('waiting for user message')
+        # resp = sock.recv(2048).decode(ENCODING)
         try:
             resp = sock.recv(2048).decode(ENCODING)
+            print('received respones from chat')
         except:
+            continue
             # continue to while loop to retry the connection
             # resp =''
-            print('error getting resonse in readtwitch ')
-            break
+            # print('error getting resonse in readtwitch ')
+            # break
 
         if "PING :tmi.twitch.tv" in resp:
             print('were playing ping pong')   
@@ -177,18 +220,34 @@ def readTwitch():
 
 def main():
     if __name__=='__main__':
+
+
+        t1 = threading.Thread(target=timer)
+
+        t1.start()
+
+
+        t2 = threading.Thread(target=stopButton)
+
+        t2.start()
         
 
+        # # t2 = threading.Thread(target = readTwitch,daemon=True)
+        t3 = threading.Thread(target = readTwitch)
+        t3.start()
 
-        t1 = threading.Thread(target = readTwitch,daemon=True)
-        # t1 = threading.Thread(target = readTwitch)
-        t1.start()
-        t2 = threading.Thread(target = output_test_function)
-        t2. start()
-        #  use join on the output_test_function.
+        t4 = threading.Thread(target = output_test_function)
+        t4. start()
+
+        t1.join()
+        t3.join()
+        t4.join()
         t2.join()
+        # t1.join()
+        
         # sock.close()
         return
 
 main()
 print('end')
+sock.close()
